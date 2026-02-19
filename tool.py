@@ -34,31 +34,22 @@ class UclMcpTool(BaseTool):
         self.server_url = os.getenv("MCP_SERVER_URL", "http://localhost:3001")
 
     def _get_server_params(self):
-        return {
-            "url": self.server_url,
-            "transport": "streamable-http"
-        }
+        return {"url": self.server_url, "transport": "streamable-http"}
 
     def _run(self, *args, **kwargs):
-
         payload = None
-
         if args:
-            first = args[0]
-
-            if isinstance(first, dict):
-                payload = first
-            elif isinstance(first, str) and len(args) > 1:
-                payload = {"tool": first, "input": args[1]}
-            else:
-                payload = {}
+            if isinstance(args[0], dict):
+                payload = args[0]
+            elif isinstance(args[0], str) and len(args) > 1:
+                payload = {"tool": args[0], "input": args[1]}
         else:
             payload = kwargs or {}
 
-        if "argument" in payload:
+        if payload and "argument" in payload:
             payload = payload["argument"]
 
-        tool_name = payload.get("tool") or payload.get("name")
+        tool_name = payload.get("tool")
         input_dict = payload.get("input", {})
 
         if not tool_name:
@@ -67,22 +58,10 @@ class UclMcpTool(BaseTool):
         try:
             with suppress_output():
                 with MCPServerAdapter(self._get_server_params()) as tools:
-
                     tools = list(tools)
-
-                    target = None
-                    for t in tools:
-                        if t.name == tool_name:
-                            target = t
-                            break
-
+                    target = next((t for t in tools if t.name == tool_name), None)
                     if not target:
-                        return {
-                            "error": f"Tool {tool_name} not found",
-                            "available": [t.name for t in tools]
-                        }
-
+                        return {"error": f"{tool_name} not found", "available": [t.name for t in tools]}
                     return target._run(**input_dict)
-
         except Exception as e:
             return {"error": str(e)}
